@@ -12,7 +12,7 @@ import (
 
 	"compress/gzip"
 
-	"code.google.com/p/goprotobuf/proto"
+	"github.com/golang/protobuf/proto"
 )
 
 // Encode protobuf encodes the tile into a byte buffer.
