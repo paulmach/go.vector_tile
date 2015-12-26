@@ -14,12 +14,15 @@ It has these top-level messages:
 package vector_tile
 
 import proto "github.com/golang/protobuf/proto"
+import fmt "fmt"
 import math "math"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
+var _ = fmt.Errorf
 var _ = math.Inf
 
+// GeomType is described in section 4.3.4 of the specification
 type Tile_GeomType int32
 
 const (
@@ -91,8 +94,9 @@ func (m *Tile) GetLayers() []*Tile_Layer {
 }
 
 // Variant type encoding
+// The use of values is described in section 4.1 of the specification
 type Tile_Value struct {
-	// Exactly one of these values may be present in a valid message
+	// Exactly one of these values must be present in a valid message
 	StringValue      *string                   `protobuf:"bytes,1,opt,name=string_value" json:"string_value,omitempty"`
 	FloatValue       *float32                  `protobuf:"fixed32,2,opt,name=float_value" json:"float_value,omitempty"`
 	DoubleValue      *float64                  `protobuf:"fixed64,3,opt,name=double_value" json:"double_value,omitempty"`
@@ -171,44 +175,19 @@ func (m *Tile_Value) GetBoolValue() bool {
 	return false
 }
 
+// Features are described in section 4.2 of the specification
 type Tile_Feature struct {
 	Id *uint64 `protobuf:"varint,1,opt,name=id,def=0" json:"id,omitempty"`
 	// Tags of this feature are encoded as repeated pairs of
-	// integers. Even indexed values (n, beginning with 0) are
-	// themselves indexes into the layer's keys list. Odd indexed
-	// values (n+1) are indexes into the layer's values list.
-	// The first (n=0) tag of a feature, therefore, has a key of
-	// layer.keys[feature.tags[0]] and a value of
-	// layer.values[feature.tags[1]].
+	// integers.
+	// A detailed description of tags is located in sections
+	// 4.2 and 4.4 of the specification
 	Tags []uint32 `protobuf:"varint,2,rep,packed,name=tags" json:"tags,omitempty"`
 	// The type of geometry stored in this feature.
 	Type *Tile_GeomType `protobuf:"varint,3,opt,name=type,enum=vector_tile.Tile_GeomType,def=0" json:"type,omitempty"`
-	// Contains a stream of commands and parameters (vertices). The
-	// repeat count is shifted to the left by 3 bits. This means
-	// that the command has 3 bits (0-7). The repeat count
-	// indicates how often this command is to be repeated. Defined
-	// commands are:
-	// - MoveTo:    1   (2 parameters follow)
-	// - LineTo:    2   (2 parameters follow)
-	// - ClosePath: 7   (no parameters follow)
-	//
-	// Commands are encoded as uint32 varints. Vertex parameters
-	// are encoded as deltas to the previous position and, as they
-	// may be negative, are further "zigzag" encoded as unsigned
-	// 32-bit ints:
-	//
-	//   n = (n << 1) ^ (n >> 31)
-	//
-	// Ex.: MoveTo(3, 6), LineTo(8, 12), LineTo(20, 34), ClosePath
-	// Encoded as: [ 9 6 12 18 10 12 24 44 15 ]
-	//               |       |              `> [00001 111] command type 7 (ClosePath), length 1
-	//               |       |       ===== relative LineTo(+12, +22) == LineTo(20, 34)
-	//               |       | ===== relative LineTo(+5, +6) == LineTo(8, 12)
-	//               |       `> [00010 010] = command type 2 (LineTo), length 2
-	//               | ==== relative MoveTo(+3, +6)
-	//               `> [00001 001] = command type 1 (MoveTo), length 1
-	//
-	// The original position is (0,0).
+	// Contains a stream of commands and parameters (vertices).
+	// A detailed description on geometry encoding is located in
+	// section 4.3 of the specification.
 	Geometry         []uint32 `protobuf:"varint,4,rep,packed,name=geometry" json:"geometry,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
@@ -248,6 +227,7 @@ func (m *Tile_Feature) GetGeometry() []uint32 {
 	return nil
 }
 
+// Layers are described in section 4.1 of the specification
 type Tile_Layer struct {
 	// Any compliant implementation must first read the version
 	// number encoded in this message and choose the correct
@@ -262,6 +242,8 @@ type Tile_Layer struct {
 	// Dictionary encoding for values
 	Values []*Tile_Value `protobuf:"bytes,4,rep,name=values" json:"values,omitempty"`
 	// The bounding box in this tile spans from 0..4095 units
+	// Although this is an "optional" field it is required by the specification.
+	// See https://github.com/mapbox/vector-tile-spec/issues/47
 	Extent           *uint32                   `protobuf:"varint,5,opt,name=extent,def=4096" json:"extent,omitempty"`
 	XXX_extensions   map[int32]proto.Extension `json:"-"`
 	XXX_unrecognized []byte                    `json:"-"`
